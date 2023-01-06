@@ -1,4 +1,5 @@
-use forma_render::{prelude::Point, PathBuilder, Order, gpu::Renderer, Composition, styling::Color};
+use forma_render::{prelude::Point, PathBuilder, Order, gpu::Renderer, Composition, styling::Color, Path};
+use linalg::Vec2;
 use wgpu::{Texture, TextureView, TextureFormat};
 
 use crate::Graphics;
@@ -86,24 +87,18 @@ impl Canvas {
 	}
 	
 	pub fn start_stroke(&mut self) -> StrokeInProgress {
-		StrokeInProgress { points: Vec::new() }
+		StrokeInProgress::new()
 	}
 	
-	pub fn move_stroke(&mut self, progress: &mut StrokeInProgress, point: Point) {
-		progress.points.push(point);
+	pub fn move_stroke(&mut self, progress: &mut StrokeInProgress, point: Vec2, pressure: f32) {
+		progress.move_to(point, pressure);
 	}
 	
 	pub fn end_stroke(&mut self, progress: StrokeInProgress) {
-		if progress.points.len() < 2 {
+		if progress.events.len() < 2 {
 			return;
 		}
-		
-		let mut path = PathBuilder::new();
-		path.move_to(progress.points[0]);
-		for point in &progress.points[1..] {
-			path.line_to(*point);
-		}
-		let path = path.build();
+		let path = pen_stroke_to_path(&progress.events, &flat_pressure_curve);
 		let mut layer = self.composition.create_layer();
 		layer.insert(&path);
 		let next_order = self.next_order();
@@ -116,11 +111,73 @@ impl Canvas {
 }
 
 pub struct StrokeInProgress {
-	points: Vec<Point>,
+	events: Vec<PenEvent>,
 }
 
 impl StrokeInProgress {
-	pub fn move_to(&mut self, point: Point) {
-		self.points.push(point);
+	pub fn new() -> Self {
+		Self {
+			events: Vec::new(),
+		}
 	}
+	
+	pub fn move_to(&mut self, point: Vec2, pressure: f32) {
+		self.events.push(PenEvent {
+			pos: point,
+			pressure,
+			speed: 1.0,
+		});
+	}
+}
+
+pub struct PenEvent {
+	pos: Vec2,
+	pressure: f32,
+	speed: f32,
+}
+
+fn pen_stroke_to_path(stroke: &[PenEvent], pressure_curve: &dyn Fn(f32) -> f32) -> Path {
+	let width = 16.0;
+	let side = width / 2.0;
+	
+	assert!(stroke.len() >= 2);
+	let mut path_builder = PathBuilder::new();
+	let a = stroke[0].pos;
+	let b = stroke[1].pos;
+	let dir = b - a;
+	let perp = Vec2::new(dir.y, -dir.x).normalize();
+	path_builder.move_to(vec_to_point(a - perp * side * pressure_curve(stroke[0].pressure)));
+	path_builder.line_to(vec_to_point(a + perp * side));
+	for i in 1..stroke.len() {
+		let a = stroke[i - 1].pos;
+		let b = stroke[i].pos;
+		let dir = b - a;
+		let perp = Vec2::new(dir.y, -dir.x).normalize();
+		path_builder.line_to(vec_to_point(b - perp * side * pressure_curve(stroke[i].pressure)));
+	}
+	let a = stroke[stroke.len() - 1].pos;
+	let b = stroke[stroke.len() - 2].pos;
+	let dir = b - a;
+	let perp = Vec2::new(dir.y, -dir.x).normalize();
+	path_builder.line_to(vec_to_point(b - perp * side * pressure_curve(stroke[stroke.len() - 2].pressure)));
+	for i in (0..(stroke.len() - 1)).rev() {
+		let a = stroke[i + 1].pos;
+		let b = stroke[i].pos;
+		let dir = b - a;
+		let perp = Vec2::new(dir.y, -dir.x).normalize();
+		path_builder.line_to(vec_to_point(b - perp * side * pressure_curve(stroke[i].pressure)));
+	}
+	path_builder.build()
+}
+
+fn point_to_vec(point: Point) -> Vec2 {
+	Vec2::new(point.x, point.y)
+}
+
+fn vec_to_point(vec: Vec2) -> Point {
+	Point::new(vec.x, vec.y)
+}
+
+fn flat_pressure_curve(pressure: f32) -> f32 {
+	pressure
 }

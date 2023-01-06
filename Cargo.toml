@@ -9,6 +9,7 @@ edition = "2021"
 anyhow = "1.0.68"
 env_logger = "0.10.0"
 forma-render = "0.1.3"
+linalg = { version = "0.1.0", path = "../linalg" }
 log = "0.4.17"
 pollster = "0.2.5"
 wgpu = "0.14.2"

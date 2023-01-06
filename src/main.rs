@@ -1,6 +1,6 @@
-use forma_render::{prelude::Point};
 use wgpu::{Instance, Queue, Device};
 use winit::{window::{WindowBuilder, Window}, event_loop::{EventLoop, ControlFlow}, dpi::LogicalSize, event::{Event, WindowEvent, MouseButton, ElementState}};
+use linalg::*;
 
 use canvas::*;
 
@@ -68,9 +68,10 @@ impl App {
 	
 	pub fn run(mut self, event_loop: EventLoop<()>) -> anyhow::Result<()> {
 		let mut stroke = self.canvas.start_stroke();
-		stroke.move_to(Point::new(10.0, 10.0));
-		stroke.move_to(Point::new(10.0, 20.0));
-		stroke.move_to(Point::new(20.0, 20.0));
+		stroke.move_to(Vec2::new(50.0, 50.0), 1.0);
+		stroke.move_to(Vec2::new(250.0, 50.0), 1.0);
+		stroke.move_to(Vec2::new(500.0, 50.0), 1.0);
+		// stroke.move_to(Vec2::new(200.0, 500.0), 1.0);
 		self.canvas.end_stroke(stroke);
 		self.canvas.render(&self.graphics);
 		self.present_canvas()?;
@@ -108,7 +109,7 @@ impl App {
 				WindowEvent::CursorMoved { device_id: _, position, .. } => {
 					self.state.stroke_in_progress
 						.as_mut()
-						.map(|progress| self.canvas.move_stroke(progress, Point::new(position.x as f32, position.y as f32)));
+						.map(|progress| self.canvas.move_stroke(progress, Vec2::new(position.x as f32, position.y as f32), 1.0));
 				},
 				WindowEvent::Resized(_size) => {
 					self.handle_window_resize();
