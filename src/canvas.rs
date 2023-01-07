@@ -2,7 +2,7 @@ use forma_render::{prelude::Point, PathBuilder, Order, gpu::Renderer, Compositio
 use linalg::Vec2;
 use wgpu::{Texture, TextureView, TextureFormat};
 
-use crate::Graphics;
+use crate::{Graphics, pen::{PenEvent, flat_pressure_curve}};
 
 pub struct Canvas {
 	width: u32,
@@ -87,22 +87,25 @@ impl Canvas {
 	}
 	
 	pub fn start_stroke(&mut self) -> StrokeInProgress {
+		self.next_order();
 		StrokeInProgress::new()
 	}
 	
 	pub fn move_stroke(&mut self, progress: &mut StrokeInProgress, point: Vec2, pressure: f32) {
 		progress.move_to(point, pressure);
+		if progress.events.len() >= 2 {
+			let path = pen_stroke_to_path(&progress.events, &flat_pressure_curve);
+			let mut layer = self.composition.create_layer();
+			layer.insert(&path);
+			self.composition.insert(Order::new(self.next_order).unwrap(), layer);
+		}
 	}
 	
 	pub fn end_stroke(&mut self, progress: StrokeInProgress) {
 		if progress.events.len() < 2 {
 			return;
 		}
-		let path = pen_stroke_to_path(&progress.events, &flat_pressure_curve);
-		let mut layer = self.composition.create_layer();
-		layer.insert(&path);
-		let next_order = self.next_order();
-		self.composition.insert(next_order, layer);
+		dbg!(&progress.events.len());
 	}
 	
 	pub fn width(&self) -> u32 { self.width }
@@ -130,11 +133,7 @@ impl StrokeInProgress {
 	}
 }
 
-pub struct PenEvent {
-	pos: Vec2,
-	pressure: f32,
-	speed: f32,
-}
+
 
 fn pen_stroke_to_path(stroke: &[PenEvent], pressure_curve: &dyn Fn(f32) -> f32) -> Path {
 	let width = 16.0;
@@ -178,6 +177,42 @@ fn vec_to_point(vec: Vec2) -> Point {
 	Point::new(vec.x, vec.y)
 }
 
-fn flat_pressure_curve(pressure: f32) -> f32 {
-	pressure
+struct StrokeData {
+	// invariant: len >= 2
+	points: Vec<StrokePoint>,
+	segments: Vec<Segment>,
+}
+
+impl StrokeData {
+	pub fn segment(&self, i: usize) -> [StrokePoint; 2] {
+		[self.points[i], self.points[i + 1]]
+	}
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StrokePoint {
+	pos: Vec2,
+	thickness: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Segment {
+	// negative = left, positive = right
+	bias: f32,
+}
+
+fn clean_stroke(stroke: StrokeData) {
+	loop {
+		// find the segment with two points closest together
+		let dense_i = (0..stroke.points.len()).min_by_key(|&i| ((stroke.segment(i)[1].pos - stroke.segment(i)[0].pos).norm_squared() * 100000.0) as u64).unwrap();
+		let dense_seg = stroke.segment(dense_i);
+		let norm = (dense_seg[1].pos - dense_seg[0].pos).norm();
+		if norm < dense_seg[0].thickness + dense_seg[1].thickness {
+			break;
+		}
+	}
+}
+
+fn stroke_data_to_path(stroke_data: &StrokeData) {
+	
 }

@@ -5,6 +5,8 @@ use linalg::*;
 use canvas::*;
 
 pub mod canvas;
+pub mod tri_canvas;
+pub mod pen;
 
 pub struct Graphics {
 	instance: Instance,
@@ -17,6 +19,7 @@ struct App {
 	window: Window,
 	surface: wgpu::Surface,
 	canvas: Canvas,
+	tri_canvas: tri_canvas::Canvas,
 	state: State,
 }
 
@@ -29,7 +32,7 @@ impl App {
 	pub fn new(event_loop: &mut EventLoop<()>) -> anyhow::Result<Self> {
 		let (width, height) = (1024, 768);
 		
-		let instance = Instance::new(wgpu::Backends::PRIMARY);
+		let instance = Instance::new(wgpu::Backends::VULKAN);
 		let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
 			power_preference: wgpu::PowerPreference::HighPerformance,
 			..Default::default()
@@ -55,6 +58,7 @@ impl App {
 		surface.configure(&graphics.device, &config);
 		
 		let canvas = Canvas::new(&graphics, width, height)?;
+		let tri_canvas = tri_canvas::Canvas::new(&graphics, width, height)?;
 		let state = State::default();
 		
 		Ok(Self {
@@ -62,6 +66,7 @@ impl App {
 			window,
 			surface,
 			canvas,
+			tri_canvas,
 			state,
 		})
 	}
@@ -97,10 +102,13 @@ impl App {
 					if button == MouseButton::Left {
 						match state {
 							ElementState::Pressed => {
-								self.state.stroke_in_progress = Some(self.canvas.start_stroke());
+								//self.state.stroke_in_progress = Some(self.canvas.start_stroke());
+								self.tri_canvas.start_stroke();
+								self.window.request_redraw();
 							},
 							ElementState::Released => {
-								self.state.stroke_in_progress.take().map(|progress| self.canvas.end_stroke(progress));
+								//self.state.stroke_in_progress.take().map(|progress| self.canvas.end_stroke(progress));
+								self.tri_canvas.end_stroke();
 								self.window.request_redraw();
 							},
 						}
@@ -110,6 +118,8 @@ impl App {
 					self.state.stroke_in_progress
 						.as_mut()
 						.map(|progress| self.canvas.move_stroke(progress, Vec2::new(position.x as f32, position.y as f32), 1.0));
+					self.tri_canvas.move_stroke(Vec2::new(position.x as f32, position.y as f32), 1.0);
+					self.window.request_redraw();
 				},
 				WindowEvent::Resized(_size) => {
 					self.handle_window_resize();
@@ -117,9 +127,10 @@ impl App {
 				_ => {},
 			},
 			Event::RedrawRequested(_window_id) => {
-				self.canvas.render(&self.graphics);
+				//self.canvas.render(&self.graphics);
+				self.tri_canvas.render(&self.graphics);
 				self.present_canvas()?;
-			}
+			},
 			_ => {},
 		};
 		
@@ -138,7 +149,7 @@ impl App {
 			alpha_mode: wgpu::CompositeAlphaMode::Opaque,
 		};
 		self.surface.configure(&self.graphics.device, &config);
-		self.canvas.resize(&self.graphics, size.width, size.height);
+		self.tri_canvas.resize(&self.graphics, size.width, size.height);
 		self.window.request_redraw();
 	}
 	
@@ -146,6 +157,7 @@ impl App {
 		for _ in 0..3 {
 			let surface_texture = match self.surface.get_current_texture() {
 				Ok(surface_texture) => if surface_texture.suboptimal {
+					drop(surface_texture);
 					self.handle_window_resize();
 					continue;
 				} else {
@@ -161,7 +173,7 @@ impl App {
 			let mut encoder = self.graphics.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Copy To Surface") });
 			encoder.copy_texture_to_texture(
 				wgpu::ImageCopyTexture {
-					texture: self.canvas.get_output(),
+					texture: self.tri_canvas.get_output(),
 					mip_level: 0,
 					origin: wgpu::Origin3d { x: 0, y: 0, z: 0 },
 					aspect: wgpu::TextureAspect::All,
@@ -172,7 +184,7 @@ impl App {
 					origin: wgpu::Origin3d { x: 0, y: 0, z: 0 },
 					aspect: wgpu::TextureAspect::All,
 				},
-				wgpu::Extent3d { width: self.canvas.width(), height: self.canvas.height(), depth_or_array_layers: 1 }
+				wgpu::Extent3d { width: self.tri_canvas.width(), height: self.tri_canvas.height(), depth_or_array_layers: 1 }
 			);
 			let commands = encoder.finish();
 			self.graphics.queue.submit([commands]);
