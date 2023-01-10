@@ -1,6 +1,6 @@
 use linalg::Vec2;
-use lyon::{lyon_tessellation::{StrokeBuilder, StrokeTessellator, StrokeOptions, VertexBuffers, geometry_builder::simple_builder}, path::{LineCap, LineJoin, traits::{PathBuilder, Build}}, math::Point};
-use wgpu::{Texture, TextureView, TextureFormat, Buffer, RenderPipeline, util::DeviceExt};
+use lyon::{lyon_tessellation::{StrokeTessellator, StrokeOptions, VertexBuffers, geometry_builder::simple_builder}, path::{LineCap, LineJoin, traits::{PathBuilder, Build}}, math::Point};
+use wgpu::{Texture, TextureView, Buffer, RenderPipeline, util::DeviceExt};
 
 use crate::{Graphics, pen::{PenEvent, flat_pressure_curve}};
 
@@ -183,7 +183,6 @@ impl Canvas {
 		});
 		render_pass.set_pipeline(&self.pipeline);
 		for layer in &self.layers {
-			dbg!(&layer);
 			render_pass.set_vertex_buffer(0, layer.vertex.slice(..));
 			render_pass.set_index_buffer(layer.index.slice(..), wgpu::IndexFormat::Uint16);
 			render_pass.draw_indexed(0..layer.len, 0, 0..1);
@@ -227,7 +226,6 @@ impl Canvas {
 				builder.line_to(Point::new(event.pos.x, event.pos.y), &[flat_pressure_curve(event.pressure)]);
 			}
 			builder.build().unwrap();
-			println!("{buffers:?}");
 			self.todo_layers.push(buffers);
 		}
 	}

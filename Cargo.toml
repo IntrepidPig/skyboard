@@ -13,5 +13,9 @@ linalg = { version = "0.1.0", path = "../linalg" }
 log = "0.4.17"
 lyon = "1.0.1"
 pollster = "0.2.5"
+vello = { git = "https://github.com/linebender/vello.git", version = "0.1.0" }
 wgpu = "0.14.2"
 winit = "0.27.5"
+
+[patch.crates-io]
+winit = { path = "/home/intrepidpig/dev/upstream/winit" }

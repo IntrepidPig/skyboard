@@ -11,6 +11,7 @@ pub struct Canvas {
 	output_view: TextureView,
 	renderer: Renderer,
 	pub composition: Composition,
+	current_stroke: Option<StrokeInProgress>,
 	next_order: u32,
 }
 
@@ -28,6 +29,7 @@ impl Canvas {
 			output_view,
 			renderer,
 			composition,
+			current_stroke: None,
 			next_order: 1,
 		})
 	}
@@ -86,26 +88,42 @@ impl Canvas {
 		order
 	}
 	
-	pub fn start_stroke(&mut self) -> StrokeInProgress {
-		self.next_order();
-		StrokeInProgress::new()
+	pub fn start_stroke(&mut self) {
+		let order = self.next_order();
+		let layer = self.composition.create_layer();
+		self.composition.insert(order, layer);
+		self.current_stroke = Some(StrokeInProgress { events: Vec::new() })
 	}
 	
-	pub fn move_stroke(&mut self, progress: &mut StrokeInProgress, point: Vec2, pressure: f32) {
-		progress.move_to(point, pressure);
-		if progress.events.len() >= 2 {
-			let path = pen_stroke_to_path(&progress.events, &flat_pressure_curve);
-			let mut layer = self.composition.create_layer();
+	pub fn move_stroke(&mut self, point: Vec2, pressure: f32) {
+		let width = 4.0;
+		
+		if let Some(ref mut progress) = self.current_stroke {
+			progress.move_to(point, pressure);
+			/* if progress.events.len() >= 2 {
+				let end = progress.events.len() - 1;
+				if (progress.events[end].pos - progress.events[end - 1].pos).norm() < width * 2.0 {
+					progress.events.pop();
+					return;
+				}
+				let path = segment_to_path([progress.events[end - 1], progress.events[end]], width, &flat_pressure_curve);
+				dbg!(&path);
+				let layer = self.composition.get_mut(Order::new(self.next_order - 1).unwrap()).unwrap();
+				layer.insert(&path);
+			} */
+		}
+	}
+	
+	pub fn end_stroke(&mut self) {
+		if let Some(progress) = self.current_stroke.take() {
+			if progress.events.len() < 2 {
+				return;
+			}
+			
+			let path = pen_stroke_to_path(&progress.events, 4.0, &flat_pressure_curve);
+			let layer = self.composition.get_mut(Order::new(self.next_order - 1).unwrap()).unwrap();
 			layer.insert(&path);
-			self.composition.insert(Order::new(self.next_order).unwrap(), layer);
 		}
-	}
-	
-	pub fn end_stroke(&mut self, progress: StrokeInProgress) {
-		if progress.events.len() < 2 {
-			return;
-		}
-		dbg!(&progress.events.len());
 	}
 	
 	pub fn width(&self) -> u32 { self.width }
@@ -113,7 +131,7 @@ impl Canvas {
 	pub fn height(&self) -> u32 { self.height }
 }
 
-pub struct StrokeInProgress {
+struct StrokeInProgress {
 	events: Vec<PenEvent>,
 }
 
@@ -133,10 +151,23 @@ impl StrokeInProgress {
 	}
 }
 
+fn segment_to_path(segment: [PenEvent; 2], width: f32, pressure_curve: &dyn Fn(f32) -> f32) -> Path {
+	let side = width / 2.0;
+	let extended = 0.0;
+	
+	let mut path_builder = PathBuilder::new();
+	let a = segment[0].pos;
+	let b = segment[1].pos;
+	let dir = b - a;
+	let perp = Vec2::new(dir.y, -dir.x).normalize();
+	path_builder.move_to(vec_to_point(a - dir * extended - perp * side * pressure_curve(segment[0].pressure)));
+	path_builder.line_to(vec_to_point(a - dir * extended + perp * side * pressure_curve(segment[0].pressure)));
+	path_builder.line_to(vec_to_point(b + dir * extended + perp * side * pressure_curve(segment[1].pressure)));
+	path_builder.line_to(vec_to_point(b + dir * extended - perp * side * pressure_curve(segment[1].pressure)));
+	path_builder.build()
+}
 
-
-fn pen_stroke_to_path(stroke: &[PenEvent], pressure_curve: &dyn Fn(f32) -> f32) -> Path {
-	let width = 16.0;
+fn pen_stroke_to_path(stroke: &[PenEvent], width: f32, pressure_curve: &dyn Fn(f32) -> f32) -> Path {
 	let side = width / 2.0;
 	
 	assert!(stroke.len() >= 2);
