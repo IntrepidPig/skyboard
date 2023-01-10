@@ -1265,22 +1265,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ba3013ff85036c414a4a3cf826135db204de2bd80d684728550e7130421809a"
 
 [[package]]
-name = "pixboard"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "env_logger",
- "forma-render",
- "linalg",
- "log",
- "lyon",
- "pollster",
- "vello",
- "wgpu",
- "winit",
-]
-
-[[package]]
 name = "pkg-config"
 version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1531,6 +1515,22 @@ dependencies = [
  "num-complex",
  "num-traits",
  "paste",
+]
+
+[[package]]
+name = "skyboard"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "env_logger",
+ "forma-render",
+ "linalg",
+ "log",
+ "lyon",
+ "pollster",
+ "vello",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]
