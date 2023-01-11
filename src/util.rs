@@ -13,3 +13,17 @@ pub fn load_wgsl_shader(device: &Device, filename: &str) -> wgpu::ShaderModule {
 	});
 	shader
 }
+
+macro_rules! time {
+	($label:expr, $work:expr) => {
+		{
+			let start = std::time::Instant::now();
+			let result = $work;
+			let dur = start.elapsed();
+			println!("TIME {:?}: {:.2}", $label, dur.as_secs_f64() * 1000.0);
+			result
+		}
+	}
+}
+
+pub(crate) use time;

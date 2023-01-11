@@ -8,5 +8,5 @@ pub struct PenEvent {
 }
 
 pub fn flat_pressure_curve(pressure: f32) -> f32 {
-	pressure * 10.0
+	pressure
 }
