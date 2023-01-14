@@ -1,4 +1,4 @@
-use wgpu::{RenderPipeline, TextureFormat, TextureView, Device};
+use wgpu::{Device, RenderPipeline, TextureFormat, TextureView};
 
 use crate::Graphics;
 
@@ -29,55 +29,53 @@ impl BlitPipeline {
 					visibility: wgpu::ShaderStages::FRAGMENT,
 					ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
 					count: None,
-				}
+				},
 			],
 		});
-		
+
 		let pipeline_layout = graphics.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 			label: Some("Blit Pipeline Layout"),
-			bind_group_layouts: &[
-				&bind_group_layout,
-			],
+			bind_group_layouts: &[&bind_group_layout],
 			push_constant_ranges: &[],
 		});
 		let pipeline = graphics.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Blit Render Pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: target_format,
-                    blend: Some(wgpu::BlendState {
-                        color: wgpu::BlendComponent::REPLACE,
-                        alpha: wgpu::BlendComponent::REPLACE,
-                    }),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-        });
-		
+			label: Some("Blit Render Pipeline"),
+			layout: Some(&pipeline_layout),
+			vertex: wgpu::VertexState {
+				module: &shader,
+				entry_point: "vs_main",
+				buffers: &[],
+			},
+			fragment: Some(wgpu::FragmentState {
+				module: &shader,
+				entry_point: "fs_main",
+				targets: &[Some(wgpu::ColorTargetState {
+					format: target_format,
+					blend: Some(wgpu::BlendState {
+						color: wgpu::BlendComponent::REPLACE,
+						alpha: wgpu::BlendComponent::REPLACE,
+					}),
+					write_mask: wgpu::ColorWrites::ALL,
+				})],
+			}),
+			primitive: wgpu::PrimitiveState {
+				topology: wgpu::PrimitiveTopology::TriangleList,
+				strip_index_format: None,
+				front_face: wgpu::FrontFace::Ccw,
+				cull_mode: None,
+				polygon_mode: wgpu::PolygonMode::Fill,
+				unclipped_depth: false,
+				conservative: false,
+			},
+			depth_stencil: None,
+			multisample: wgpu::MultisampleState {
+				count: 1,
+				mask: !0,
+				alpha_to_coverage_enabled: false,
+			},
+			multiview: None,
+		});
+
 		let sampler = graphics.device.create_sampler(&wgpu::SamplerDescriptor {
 			label: Some("Blit Sampler"),
 			address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -92,22 +90,27 @@ impl BlitPipeline {
 			anisotropy_clamp: None,
 			border_color: None,
 		});
-		
+
 		Self {
 			pipeline,
 			sampler,
 			bind_group_layout,
 		}
 	}
-	
-	fn create_bind_group(device: &Device, layout: &wgpu::BindGroupLayout, view: &wgpu::TextureView, sampler: &wgpu::Sampler) -> wgpu::BindGroup {
+
+	fn create_bind_group(
+		device: &Device,
+		layout: &wgpu::BindGroupLayout,
+		view: &wgpu::TextureView,
+		sampler: &wgpu::Sampler,
+	) -> wgpu::BindGroup {
 		device.create_bind_group(&wgpu::BindGroupDescriptor {
 			label: Some("Blit Bind Group"),
 			layout,
 			entries: &[
 				wgpu::BindGroupEntry {
 					binding: 0,
-					resource: wgpu::BindingResource::TextureView(view)
+					resource: wgpu::BindingResource::TextureView(view),
 				},
 				wgpu::BindGroupEntry {
 					binding: 1,
@@ -116,17 +119,24 @@ impl BlitPipeline {
 			],
 		})
 	}
-	
+
 	pub fn blit(&self, graphics: &Graphics, source_view: &TextureView, target_view: &TextureView) {
 		let bind_group = Self::create_bind_group(&graphics.device, &self.bind_group_layout, &source_view, &self.sampler);
-		let mut encoder = graphics.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Blit Command Encoder") });
+		let mut encoder = graphics.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+			label: Some("Blit Command Encoder"),
+		});
 		let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
 			label: Some("Blit Render Pass"),
 			color_attachments: &[Some(wgpu::RenderPassColorAttachment {
 				view: target_view,
 				resolve_target: None,
 				ops: wgpu::Operations {
-					load: wgpu::LoadOp::Clear(wgpu::Color { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }),
+					load: wgpu::LoadOp::Clear(wgpu::Color {
+						r: 1.0,
+						g: 1.0,
+						b: 1.0,
+						a: 1.0,
+					}),
 					store: true,
 				},
 			})],
