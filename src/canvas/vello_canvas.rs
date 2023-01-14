@@ -1,24 +1,21 @@
+use linalg::na::{Affine2, Translation2, Scale2};
 use vello::peniko::{Stroke, Join, Cap, Color, Fill, Brush};
 use vello::{Renderer, Scene, FragmentBuilder, SceneFragment};
 use vello::kurbo::{Line, Affine, Point, Rect};
-use linalg::Vec2;
-use wgpu::{TextureView};
+use linalg::prelude::*;
+use wgpu::{TextureView, Texture};
 
 use crate::pen::flat_pressure_curve;
-use crate::ui::CanvasView;
+use crate::util::*;
 use crate::{Graphics, pen::{PenEvent}};
 
 pub struct Canvas {
-	renderer: Renderer,
 	layers: Vec<SceneFragment>,
 	active_stroke: Option<ActiveStroke>,
 }
 
 impl Canvas {
-	pub fn new(graphics: &Graphics) -> anyhow::Result<Self> {
-		let renderer = Renderer::new(&graphics.device)
-			.map_err(|e| anyhow::format_err!("{e}"))?;
-			
+	pub fn new() -> Self {
 		let mut layers = Vec::new();
 		
 		// Add white background as first layer
@@ -32,27 +29,10 @@ impl Canvas {
 		);
 		layers.push(builder.finish());
 			
-		Ok(Self {
-			renderer,
+		Self {
 			layers,
 			active_stroke: None,
-		})
-	}
-	
-	pub fn render(&mut self, graphics: &Graphics, view: &CanvasView, transform: Affine) {
-		let mut scene = Scene::new();
-		for layer in &self.layers {
-			scene.append(layer, Some(transform));
 		}
-		
-		self.renderer.render_to_texture(
-			&graphics.device,
-			&graphics.queue,
-			&scene,
-			view.get_texture_view(),
-			view.get_width(),
-			view.get_height(),
-		).unwrap();
 	}
 	
 	pub fn start_stroke(&mut self) {
@@ -60,7 +40,7 @@ impl Canvas {
 		self.layers.push(SceneFragment::new());
 	}
 	
-	pub fn move_stroke(&mut self, point: Vec2, pressure: f32) {
+	pub fn move_stroke(&mut self, point: Point2, pressure: f32) {
 		if let Some(ref mut active) = self.active_stroke {
 			active.push_event(PenEvent {
 				pos: point,
@@ -120,5 +100,108 @@ impl ActiveStroke {
 	
 	pub fn get_fragment(&self) -> SceneFragment {
 		self.builder.clone().finish()
+	}
+}
+
+pub struct CanvasWidget {
+	pub canvas: Canvas,
+	width: u32,
+	height: u32,
+	/// The displacement of the view of the widget from the origin of the page
+	/// Dragging left = panning right
+	pub pan: Vec2,
+	pub zoom: f64,
+	renderer: Renderer,
+	target: Texture,
+	target_view: TextureView,
+}
+
+impl CanvasWidget {
+	pub fn new(graphics: &Graphics, width: u32, height: u32) -> anyhow::Result<Self> {
+		let renderer = Renderer::new(&graphics.device)
+			.map_err(|e| anyhow::format_err!("{e}"))?;
+		let canvas = Canvas::new();
+		let (target, target_view) = Self::create_texture(graphics, width, height);
+		
+		Ok(Self {
+			canvas,
+			width,
+			height,
+			pan: Vec2::zero(),
+			zoom: 1.0,
+			renderer,
+			target,
+			target_view,
+		})
+	}
+	
+	pub fn resize(&mut self, graphics: &Graphics, new_width: u32, new_height: u32) {
+		let (new_target, new_target_view) = Self::create_texture(graphics, new_width, new_height);
+		self.target = new_target;
+		self.target_view = new_target_view;
+	}
+	
+	fn create_texture(graphics: &Graphics, width: u32, height: u32) -> (Texture, TextureView) {
+		let texture = graphics.device.create_texture(&wgpu::TextureDescriptor {
+			label: Some("Canvas Widget Target Texture"),
+			size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+			mip_level_count: 1,
+			sample_count: 1,
+			dimension: wgpu::TextureDimension::D2,
+			format: wgpu::TextureFormat::Rgba8Unorm,
+			usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
+		});
+		let texture_view = texture.create_view(&wgpu::TextureViewDescriptor {
+			label: Some("Canvas Widget Target TextureView"),
+			format: Some(wgpu::TextureFormat::Rgba8Unorm),
+			dimension: Some(wgpu::TextureViewDimension::D2),
+			aspect: wgpu::TextureAspect::All,
+			base_mip_level: 0,
+			mip_level_count: None,
+			base_array_layer: 0,
+			array_layer_count: None,
+		});
+		(texture, texture_view)
+	}
+	
+	pub fn get_texture_view(&self) -> &TextureView {
+		&self.target_view
+	}
+	
+	pub fn get_width(&self) -> u32 {
+		self.width
+	}
+	
+	pub fn get_height(&self) -> u32 {
+		self.height
+	}
+	
+	/// Transform widget coordinates to page coordinates
+	pub fn transform(&self) -> Affine2<f64> {
+		Affine2::from_matrix_unchecked(
+			Translation2::new(self.pan.x, self.pan.y).to_homogeneous()
+				* Scale2::new(1.0 / self.zoom, 1.0 / self.zoom).to_homogeneous()
+		)
+	}
+	
+	/// Transform page coordinates to widget coordinates according to internal offset and zoom
+	pub fn inv_transform(&self) -> Affine2<f64> {
+		self.transform().inverse()
+	}
+	
+	pub fn render(&mut self, graphics: &Graphics) {
+		let mut scene = Scene::new();
+		for layer in &self.canvas.layers {
+			scene.append(layer, Some((self.inv_transform()).ltov()));
+		}
+		
+		timeit!("render canvas", self.renderer.render_to_texture(
+			&graphics.device,
+			&graphics.queue,
+			&scene,
+			&self.target_view,
+			self.width,
+			self.height,
+		).unwrap());
 	}
 }

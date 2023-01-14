@@ -118,7 +118,7 @@ impl BlitPipeline {
 	}
 	
 	pub fn blit(&self, graphics: &Graphics, source_view: &TextureView, target_view: &TextureView) {
-		let bind_group = crate::util::time!("create bind group", Self::create_bind_group(&graphics.device, &self.bind_group_layout, &source_view, &self.sampler));
+		let bind_group = Self::create_bind_group(&graphics.device, &self.bind_group_layout, &source_view, &self.sampler);
 		let mut encoder = graphics.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Blit Command Encoder") });
 		let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
 			label: Some("Blit Render Pass"),

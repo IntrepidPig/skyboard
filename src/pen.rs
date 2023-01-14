@@ -2,7 +2,7 @@ use linalg::*;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PenEvent {
-	pub pos: Vec2,
+	pub pos: Point2,
 	pub pressure: f32,
 	pub speed: f32,
 }
