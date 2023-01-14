@@ -83,7 +83,6 @@ struct App {
 	old_mouse_pos: Point2,
 	input_state: InputState,
 	current_pressure: f32,
-	offset: Vec2,
 	zoom_level: i32,
 }
 
@@ -96,7 +95,6 @@ impl App {
 			old_mouse_pos: Point2::new(0.0, 0.0),
 			input_state: InputState::new(),
 			current_pressure: 0.0,
-			offset: Vec2::zero(),
 			zoom_level: 0,
 		})
 	}
