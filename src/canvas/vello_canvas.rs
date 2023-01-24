@@ -148,6 +148,8 @@ impl CanvasWidget {
 		let (new_target, new_target_view) = Self::create_texture(graphics, new_width, new_height);
 		self.target = new_target;
 		self.target_view = new_target_view;
+		self.width = new_width;
+		self.height = new_height;
 	}
 
 	fn create_texture(graphics: &Graphics, width: u32, height: u32) -> (Texture, TextureView) {
